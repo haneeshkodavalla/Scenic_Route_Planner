@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scenic Route Calculator | Google Maps Interface</title>
+
+  <!-- Google Fonts & Leaflet CSS -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    :root {
+      --gm-blue: #1a73e8;
+      --gm-green: #0f9d58;
+      --gm-amber: #e37400;
+      --gm-gray-bg: #f8f9fa;
+      --gm-gray-border: #dadce0;
+      --gm-text-main: #202124;
+      --gm-text-muted: #5f6368;
+      --gm-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+      --gm-card-shadow: 0 1px 3px rgba(60, 64, 67, 0.2);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body, html { width: 100%; height: 100%; overflow: hidden; font-family: 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif; color: var(--gm-text-main); }
+
+    #map { width: 100vw; height: 100vh; z-index: 1; }
+
+    /* Floating Navigation Sidebar */
+    .gmap-sidebar {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      z-index: 1000;
+      width: 400px;
+      max-width: calc(100vw - 32px);
+      max-height: calc(100vh - 32px);
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: var(--gm-shadow);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: transform 0.25s ease;
+    }
+
+    /* Header */
+    .header-bar {
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid var(--gm-gray-border);
+      background: #ffffff;
+    }
+    .header-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .brand-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #0f9d58, #1a73e8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .brand-name {
+      font-family: 'Google Sans', 'Roboto', sans-serif;
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--gm-text-main);
+      line-height: 1.2;
+    }
+    .brand-subtitle {
+      font-size: 12px;
+      color: var(--gm-text-muted);
+      margin-top: 2px;
+    }
+
+    /* Scrollable Container */
+    .sidebar-content {
+      padding: 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* Origin & Destination Box */
+    .route-inputs-card {
+      background: var(--gm-gray-bg);
+      border: 1px solid var(--gm-gray-border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: relative;
+    }
+    .route-connector {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+    }
+    .pin-dot-start {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--gm-green);
+      box-shadow: 0 0 0 3px rgba(15, 157, 88, 0.2);
+    }
+    .line-dots {
+      width: 2px;
+      height: 24px;
+      background: repeating-linear-gradient(to bottom, #9aa0a6 0, #9aa0a6 3px, transparent 3px, transparent 6px);
+    }
+    .pin-dot-end {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #ea4335;
+      box-shadow: 0 0 0 3px rgba(234, 67, 53, 0.2);
+    }
+
+    .inputs-fields {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .input-row {
+      display: flex;
+      flex-direction: column;
+    }
+    .input-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--gm-text-muted);
+    }
+    .input-val {
+      font-size: 13.5px;
+      font-weight: 500;
+      color: var(--gm-text-main);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .swap-btn {
+      background: white;
+      border: 1px solid var(--gm-gray-border);
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--gm-text-muted);
+      transition: all 0.2s;
+    }
+    .swap-btn:hover {
+      background: #f1f3f4;
+      color: var(--gm-blue);
+      transform: rotate(180deg);
+    }
+
+    /* Status Instruction banner */
+    .status-banner {
+      background: #e8f0fe;
+      border-left: 4px solid var(--gm-blue);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12.5px;
+      color: #174ea6;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .reset-link {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--gm-blue);
+      text-decoration: underline;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    /* Route Cards */
+    .route-options-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--gm-text-muted);
+      margin-top: 2px;
+    }
+
+    .route-card {
+      border: 2px solid var(--gm-gray-border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      cursor: pointer;
+      background: #ffffff;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+    .route-card:hover {
+      border-color: #bdc1c6;
+      box-shadow: var(--gm-card-shadow);
+    }
+    .route-card.active-card {
+      border-color: var(--card-theme-color, var(--gm-blue));
+      background: var(--card-theme-bg, #f8fafd);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+    }
+
+    .card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 4px;
+    }
+    .card-eta {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--card-theme-color, var(--gm-text-main));
+    }
+    .card-distance {
+      font-size: 13.5px;
+      font-weight: 500;
+      color: var(--gm-text-muted);
+      margin-left: 6px;
+    }
+    .card-tag {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 12px;
+      background: var(--tag-bg, #e8f0fe);
+      color: var(--tag-color, #174ea6);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .card-route-name {
+      font-size: 13px;
+      color: var(--gm-text-main);
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+    .card-metrics {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px dashed #e0e0e0;
+      padding-top: 8px;
+      margin-top: 4px;
+      font-size: 12px;
+      color: var(--gm-text-muted);
+    }
+    .scenic-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-weight: 600;
+      color: var(--gm-green);
+    }
+
+    /* Fine-tune Drawer (Alpha Tuning) */
+    .tuner-accordion {
+      background: var(--gm-gray-bg);
+      border: 1px solid var(--gm-gray-border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .tuner-header {
+      padding: 10px 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--gm-text-main);
+      user-select: none;
+    }
+    .tuner-body {
+      padding: 0 14px 14px;
+      font-size: 12px;
+      color: var(--gm-text-muted);
+    }
+    .slider-track {
+      width: 100%;
+      margin: 10px 0 6px;
+      accent-color: var(--gm-blue);
+      cursor: pointer;
+    }
+    .slider-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--gm-text-muted);
+    }
+
+    /* Satellite / Basemap Switcher on Map */
+    .map-style-toggle {
+      position: absolute;
+      bottom: 24px;
+      right: 24px;
+      z-index: 1000;
+      background: #ffffff;
+      border-radius: 30px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      display: flex;
+      padding: 4px;
+      border: 1px solid var(--gm-gray-border);
+    }
+    .map-btn {
+      border: none;
+      background: transparent;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--gm-text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .map-btn.active {
+      background: var(--gm-blue);
+      color: white;
+    }
+
+    /* Google Maps Custom Markers */
+    .gmap-marker-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Loading skeleton */
+    .skeleton {
+      background: linear-gradient(90deg, #eceff1 25%, #f5f5f5 50%, #eceff1 75%);
+      background-size: 200% 100%;
+      animation: loading 1.5s infinite;
+      border-radius: 4px;
+      height: 16px;
+    }
+    @keyframes loading {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Floating Google Maps Navigation Panel -->
+  <aside class="gmap-sidebar">
+    <header class="header-bar">
+      <div class="header-title">
+        <div class="brand-icon">🌿</div>
+        <div>
+          <div class="brand-name">Scenic Route Calculator</div>
+          <div class="brand-subtitle">Khopoli — Talegaon Dabhade Corridor</div>
+        </div>
+      </div>
+    </header>
+
+    <div class="sidebar-content">
+      <!-- Origin & Destination Selector -->
+      <section class="route-inputs-card">
+        <div class="route-connector">
+          <div class="pin-dot-start"></div>
+          <div class="line-dots"></div>
+          <div class="pin-dot-end"></div>
+        </div>
+
+        <div class="inputs-fields">
+          <div class="input-row">
+            <span class="input-label">Origin (Start)</span>
+            <span class="input-val" id="startLabel">Khopoli (18.7833, 73.3667)</span>
+          </div>
+          <div class="input-row">
+            <span class="input-label">Destination (End)</span>
+            <span class="input-val" id="endLabel">Talegaon Dabhade (18.7333, 73.6833)</span>
+          </div>
+        </div>
+
+        <button class="swap-btn" id="swapBtn" title="Swap Start & Destination">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/>
+          </svg>
+        </button>
+      </section>
+
+      <!-- Status banner -->
+      <div class="status-banner" id="statusBox">
+        <span id="statusText">💡 Click anywhere in the corridor box to pick new points.</span>
+        <span class="reset-link" id="resetBtn">Reset</span>
+      </div>
+
+      <!-- Route Cards Selection -->
+      <div class="route-options-title">Recommended Routes</div>
+
+      <!-- Card 1: Fastest Route (Alpha = 1.0) -->
+      <div class="route-card" id="cardFast" style="--card-theme-color: #1a73e8; --card-theme-bg: #f2f7fe; --tag-bg: #e8f0fe; --tag-color: #174ea6;">
+        <div class="card-top">
+          <div>
+            <span class="card-eta" id="fastEta"><div class="skeleton" style="width: 70px;"></div></span>
+            <span class="card-distance" id="fastDist"></span>
+          </div>
+          <span class="card-tag">⚡ Fastest</span>
+        </div>
+        <div class="card-route-name">via Mumbai–Pune Expressway</div>
+        <div class="card-metrics">
+          <span>Speed Priority (&alpha; = 1.00)</span>
+          <span class="scenic-badge" id="fastScenic">Score: ...</span>
+        </div>
+      </div>
+
+      <!-- Card 2: Balanced Scenic Route (Alpha = 0.45) -->
+      <div class="route-card active-card" id="cardBalanced" style="--card-theme-color: #0f9d58; --card-theme-bg: #f1f8f5; --tag-bg: #e6f4ea; --tag-color: #137333;">
+        <div class="card-top">
+          <div>
+            <span class="card-eta" id="balEta"><div class="skeleton" style="width: 70px;"></div></span>
+            <span class="card-distance" id="balDist"></span>
+          </div>
+          <span class="card-tag">🌿 Recommended</span>
+        </div>
+        <div class="card-route-name">via Old NH4 / Khandala & Lonavala Ghat</div>
+        <div class="card-metrics">
+          <span>Optimal Trade-off (&alpha; = 0.45)</span>
+          <span class="scenic-badge" id="balScenic">Score: ...</span>
+        </div>
+      </div>
+
+      <!-- Card 3: Maximum Scenic Route (Alpha = 0.0) -->
+      <div class="route-card" id="cardScenic" style="--card-theme-color: #e37400; --card-theme-bg: #fdf7f0; --tag-bg: #fef7e0; --tag-color: #b06000;">
+        <div class="card-top">
+          <div>
+            <span class="card-eta" id="scenicEta"><div class="skeleton" style="width: 70px;"></div></span>
+            <span class="card-distance" id="scenicDist"></span>
+          </div>
+          <span class="card-tag">🌄 Max Scenic</span>
+        </div>
+        <div class="card-route-name">via Dudhivare & Pawna Lake Detour</div>
+        <div class="card-metrics">
+          <span>Scenic Priority (&alpha; = 0.00)</span>
+          <span class="scenic-badge" id="scenicScore">Score: ...</span>
+        </div>
+      </div>
+
+      <!-- Advanced Alpha Fine-Tuner Accordion -->
+      <details class="tuner-accordion" id="tunerDetails">
+        <summary class="tuner-header">
+          <span>⚙️ Custom Balance Slider (&alpha; = <strong id="sliderValDisplay">0.45</strong>)</span>
+          <span>▾</span>
+        </summary>
+        <div class="tuner-body">
+          <input type="range" class="slider-track" id="customAlpha" min="0" max="1" step="0.05" value="0.45" />
+          <div class="slider-labels">
+            <span>0.0 (Pure Scenic)</span>
+            <span>0.5 (Balanced)</span>
+            <span>1.0 (Fastest Time)</span>
+          </div>
+        </div>
+      </details>
+    </div>
+  </aside>
+
+  <!-- Basemap Switcher (Streets vs Satellite) -->
+  <div class="map-style-toggle">
+    <button class="map-btn active" id="btnStreet">Map</button>
+    <button class="map-btn" id="btnSatellite">Satellite</button>
+  </div>
+
+  <!-- Map Container -->
+  <div id="map"></div>
+
+  <!-- Leaflet Scripts -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // --- 1. Map Initialization ---
+    const map = L.map('map', {
+      center: [18.76, 73.52],
+      zoom: 11,
+      zoomControl: false
+    });
+
+    // Custom top-right zoom control (like Google Maps)
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+    // Free Basemaps (No API Key Required)
+    const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19
+    }).addTo(map);
+
+    const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri, Earthstar Geographics'
+    });
+
+    // Layer switch logic
+    document.getElementById('btnStreet').addEventListener('click', () => {
+      map.removeLayer(satelliteLayer);
+      map.addLayer(streetLayer);
+      document.getElementById('btnStreet').classList.add('active');
+      document.getElementById('btnSatellite').classList.remove('active');
+    });
+    document.getElementById('btnSatellite').addEventListener('click', () => {
+      map.removeLayer(streetLayer);
+      map.addLayer(satelliteLayer);
+      document.getElementById('btnSatellite').classList.add('active');
+      document.getElementById('btnStreet').classList.remove('active');
+    });
+
+    // Study Corridor Boundary (North: 18.85, South: 18.65, East: 73.75, West: 73.30)
+    const bounds = L.latLngBounds([[18.65, 73.30], [18.85, 73.75]]);
+    L.rectangle(bounds, {
+      color: '#5f6368',
+      weight: 1.5,
+      dashArray: '6, 6',
+      fill: true,
+      fillColor: '#1a73e8',
+      fillOpacity: 0.02
+    }).addTo(map).bindTooltip("Corridor Study Area (Khopoli – Talegaon)", { sticky: true, opacity: 0.8 });
+
+    // --- 2. Marker Styling (Google Maps SVGs) ---
+    const greenPinSvg = `
+      <svg width="26" height="36" viewBox="0 0 24 34" fill="none">
+        <path d="M12 0C5.37 0 0 5.37 0 12c0 9 12 22 12 22s12-13 12-22c0-6.63-5.37-12-12-12z" fill="#0f9d58"/>
+        <circle cx="12" cy="12" r="5" fill="#ffffff"/>
+      </svg>`;
+    const redPinSvg = `
+      <svg width="26" height="36" viewBox="0 0 24 34" fill="none">
+        <path d="M12 0C5.37 0 0 5.37 0 12c0 9 12 22 12 22s12-13 12-22c0-6.63-5.37-12-12-12z" fill="#ea4335"/>
+        <circle cx="12" cy="12" r="5" fill="#ffffff"/>
+      </svg>`;
+
+    const startIcon = L.divIcon({ html: greenPinSvg, className: 'gmap-marker-icon', iconSize: [26, 36], iconAnchor: [13, 36] });
+    const endIcon = L.divIcon({ html: redPinSvg, className: 'gmap-marker-icon', iconSize: [26, 36], iconAnchor: [13, 36] });
+
+    let startMarker = null;
+    let endMarker = null;
+
+    // Default Endpoints
+    const DEFAULT_START = { lat: 18.7833, lng: 73.3667, name: "Khopoli" };
+    const DEFAULT_END = { lat: 18.7333, lng: 73.6833, name: "Talegaon Dabhade" };
+
+    let currentStart = { ...DEFAULT_START };
+    let currentEnd = { ...DEFAULT_END };
+    let pickingState = 0; // 0: idle, 1: waiting for end point
+
+    // Polylines & Data Cache
+    let polylines = { fast: null, balanced: null, scenic: null, custom: null };
+    let routeData = { fast: null, balanced: null, scenic: null, custom: null };
+    let activeKey = 'balanced';
+
+    // --- 3. Routing API Calls ---
+    async function fetchRoute(alpha, s = currentStart, e = currentEnd) {
+      const url = `/route?alpha=${alpha}&start_lat=${s.lat}&start_lon=${s.lng}&end_lat=${e.lat}&end_lon=${e.lng}`;
+      try {
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        return await res.json();
+      } catch (err) {
+        console.error("Route fetch error:", err);
+        return null;
+      }
+    }
+
+    // Colors matching Google Maps alternatives styling
+    const COLORS = {
+      fast: '#1a73e8',       // Google Blue
+      balanced: '#0f9d58',   // Forest Emerald
+      scenic: '#e37400',     // Warm Amber
+      inactive: '#80868b'    // Translucent Gray for unselected routes
+    };
+
+    function updateCardDisplay(prefix, data) {
+      const etaElem = document.getElementById(`${prefix}Eta`);
+      const distElem = document.getElementById(`${prefix}Dist`);
+      const scoreElem = document.getElementById(prefix === 'scenic' ? 'scenicScore' : `${prefix}Scenic`);
+
+      if (!data) {
+        etaElem.textContent = "N/A";
+        distElem.textContent = "";
+        scoreElem.textContent = "No route";
+        return;
+      }
+
+      etaElem.textContent = `${data.time_min} min`;
+      distElem.textContent = `(${data.distance_km} km)`;
+      scoreElem.textContent = `Scenic: ${data.scenic_score}`;
+    }
+
+    function renderPolylines() {
+      // Clear existing layers
+      Object.values(polylines).forEach(layer => {
+        if (layer) map.removeLayer(layer);
+      });
+
+      const keys = ['fast', 'scenic', 'balanced'];
+      // Sort so active route renders ON TOP
+      keys.sort((a, b) => (a === activeKey ? 1 : b === activeKey ? -1 : 0));
+
+      keys.forEach(k => {
+        const d = routeData[k];
+        if (!d) return;
+
+        const isSelected = (k === activeKey);
+        const poly = L.polyline(d.route, {
+          color: isSelected ? COLORS[k] : COLORS.inactive,
+          weight: isSelected ? 6 : 4,
+          opacity: isSelected ? 0.95 : 0.55,
+          lineJoin: 'round',
+          lineCap: 'round'
+        }).addTo(map);
+
+        // Click on route to activate card
+        poly.on('click', (e) => {
+          L.DomEvent.stopPropagation(e);
+          setActiveRoute(k);
+        });
+
+        poly.bindTooltip(`${k.toUpperCase()}: ${d.time_min} min (${d.distance_km} km) • Score: ${d.scenic_score}`, {
+          sticky: true,
+          className: 'route-tooltip'
+        });
+
+        polylines[k] = poly;
+      });
+
+      // Update active card styling
+      document.querySelectorAll('.route-card').forEach(c => c.classList.remove('active-card'));
+      if (activeKey === 'fast') document.getElementById('cardFast').classList.add('active-card');
+      if (activeKey === 'balanced') document.getElementById('cardBalanced').classList.add('active-card');
+      if (activeKey === 'scenic') document.getElementById('cardScenic').classList.add('active-card');
+    }
+
+    function setActiveRoute(key) {
+      activeKey = key;
+      renderPolylines();
+      if (routeData[key] && polylines[key]) {
+        map.fitBounds(polylines[key].getBounds(), { padding: [50, 50], maxZoom: 13 });
+      }
+    }
+
+    async function computeAllRoutes() {
+      // Update markers
+      if (startMarker) map.removeLayer(startMarker);
+      if (endMarker) map.removeLayer(endMarker);
+
+      startMarker = L.marker([currentStart.lat, currentStart.lng], { icon: startIcon }).addTo(map).bindPopup(`<b>Start</b>: ${currentStart.name || 'Selected Point'}`);
+      endMarker = L.marker([currentEnd.lat, currentEnd.lng], { icon: endIcon }).addTo(map).bindPopup(`<b>Destination</b>: ${currentEnd.name || 'Selected Point'}`);
+
+      // Set skeletons
+      ['fast', 'bal', 'scenic'].forEach(prefix => {
+        document.getElementById(`${prefix}Eta`).innerHTML = '<div class="skeleton" style="width:65px"></div>';
+        document.getElementById(`${prefix}Dist`).textContent = '';
+      });
+
+      // Parallel fetch the 3 Pareto options (Fastest: 1.0, Balanced: 0.45, Max Scenic: 0.0)
+      const [fastRes, balRes, scenicRes] = await Promise.all([
+        fetchRoute(1.0),
+        fetchRoute(0.45),
+        fetchRoute(0.0)
+      ]);
+
+      routeData.fast = fastRes;
+      routeData.balanced = balRes;
+      routeData.scenic = scenicRes;
+
+      updateCardDisplay('fast', fastRes);
+      updateCardDisplay('bal', balRes);
+      updateCardDisplay('scenic', scenicRes);
+
+      renderPolylines();
+
+      if (routeData[activeKey] && polylines[activeKey]) {
+        map.fitBounds(polylines[activeKey].getBounds(), { padding: [60, 60], maxZoom: 13 });
+      }
+    }
+
+    // --- 4. User Interaction Handlers ---
+    document.getElementById('cardFast').addEventListener('click', () => setActiveRoute('fast'));
+    document.getElementById('cardBalanced').addEventListener('click', () => setActiveRoute('balanced'));
+    document.getElementById('cardScenic').addEventListener('click', () => setActiveRoute('scenic'));
+
+    // Swap Start & Destination
+    document.getElementById('swapBtn').addEventListener('click', () => {
+      const temp = { ...currentStart };
+      currentStart = { ...currentEnd };
+      currentEnd = temp;
+
+      document.getElementById('startLabel').textContent = currentStart.name || `${currentStart.lat.toFixed(4)}, ${currentStart.lng.toFixed(4)}`;
+      document.getElementById('endLabel').textContent = currentEnd.name || `${currentEnd.lat.toFixed(4)}, ${currentEnd.lng.toFixed(4)}`;
+
+      computeAllRoutes();
+    });
+
+    // Reset button
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      currentStart = { ...DEFAULT_START };
+      currentEnd = { ...DEFAULT_END };
+      document.getElementById('startLabel').textContent = `${DEFAULT_START.name} (${DEFAULT_START.lat}, ${DEFAULT_START.lng})`;
+      document.getElementById('endLabel').textContent = `${DEFAULT_END.name} (${DEFAULT_END.lat}, ${DEFAULT_END.lng})`;
+      document.getElementById('statusText').textContent = "💡 Click anywhere in the corridor box to pick new points.";
+      pickingState = 0;
+      computeAllRoutes();
+    });
+
+    // Click on Map to Select Start & End
+    map.on('click', (e) => {
+      if (!bounds.contains(e.latlng)) {
+        document.getElementById('statusText').textContent = "⚠️ Click inside the dashed study box (Khopoli to Talegaon corridor).";
+        return;
+      }
+
+      if (pickingState === 0) {
+        // Pick Start
+        currentStart = { lat: e.latlng.lat, lng: e.latlng.lng, name: `Custom (${e.latlng.lat.toFixed(3)}, ${e.latlng.lng.toFixed(3)})` };
+        document.getElementById('startLabel').textContent = currentStart.name;
+        if (startMarker) map.removeLayer(startMarker);
+        if (endMarker) map.removeLayer(endMarker);
+        startMarker = L.marker(e.latlng, { icon: startIcon }).addTo(map);
+
+        pickingState = 1;
+        document.getElementById('statusText').textContent = "🎯 Great! Now click destination point.";
+      } else {
+        // Pick End
+        currentEnd = { lat: e.latlng.lat, lng: e.latlng.lng, name: `Custom (${e.latlng.lat.toFixed(3)}, ${e.latlng.lng.toFixed(3)})` };
+        document.getElementById('endLabel').textContent = currentEnd.name;
+        pickingState = 0;
+        document.getElementById('statusText').textContent = "✨ Routes updated! Click again to choose new points.";
+        computeAllRoutes();
+      }
+    });
+
+    // Custom Alpha Slider
+    const slider = document.getElementById('customAlpha');
+    const sliderDisplay = document.getElementById('sliderValDisplay');
+
+    slider.addEventListener('input', () => {
+      sliderDisplay.textContent = Number(slider.value).toFixed(2);
+    });
+
+    slider.addEventListener('change', async () => {
+      const alphaVal = parseFloat(slider.value);
+      sliderDisplay.textContent = alphaVal.toFixed(2);
+      document.getElementById('statusText').textContent = `Calculating custom route for \u03B1 = ${alphaVal}...`;
+
+      const customRes = await fetchRoute(alphaVal);
+      if (customRes) {
+        routeData.balanced = customRes; // Overwrite balanced view with custom slider result
+        updateCardDisplay('bal', customRes);
+        document.getElementById('cardBalanced').querySelector('.card-route-name').textContent = `Custom Tuning (\u03B1 = ${alphaVal})`;
+        setActiveRoute('balanced');
+        document.getElementById('statusText').textContent = `Custom route calculated for \u03B1 = ${alphaVal}`;
+      }
+    });
+
+    // Initial Load
+    computeAllRoutes();
+  </script>
+</body>
+</html>

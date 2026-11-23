@@ -1,0 +1,15 @@
+# ==============================================================================
+# Most Scenic Route Planner - Python Dependencies
+# ==============================================================================
+
+# Web Application & Routing Engine (FastAPI Backend + Network Routing)
+fastapi>=0.100.0
+uvicorn>=0.20.0
+osmnx>=2.0.0
+networkx>=3.0
+pandas>=2.0.0
+geopandas>=1.0.0
+shapely>=2.0.0
+
+# Geospatial Data Pipeline (Sentinel-2, SRTM, and OSM feature processing)
+earthengine-api>=1.0.0
