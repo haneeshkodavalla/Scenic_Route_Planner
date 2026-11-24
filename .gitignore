@@ -1,0 +1,32 @@
+# Python environments and caches
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local build and editor files
+.vscode/
+.idea/
+*.log
+.DS_Store
+
+# Local caches and unrelated learning material
+cache/
+GeoPandas_practice/
+
+# Secrets and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*credentials*.json
+*service-account*.json
+*service_account*.json
+
+# Do not commit cloud or local authentication files
+*.p12
+*.pfx
